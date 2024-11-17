@@ -23,7 +23,6 @@ class CodeGenerationAgent:
             max_iterations: Maximum number of iteration attempts
         """
         genai.configure(api_key=os.environ["API_KEY"])
-        #self.client = OpenAI(api_key=api_key or os.getenv('OPENAI_API_KEY'))
         self.max_iterations = max_iterations
         self.model = genai.GenerativeModel("gemini-1.5-flash")
         
@@ -38,7 +37,13 @@ Only provide the code without any explanations."""
         try:
             response = self.model.generate_content(prompt)
             logger.info("Generated code!")
-            return response.text
+            ret_text = response.text
+            split_code = ret_text.split("\n")
+            for is_it_tilde in split_code:
+                if "```" in is_it_tilde:
+                    split_code.remove(is_it_tilde)
+            split_code_join = "\n".join(split_code)
+            return split_code_join
         except Exception as e:
             logger.error(f"Error generating code: {str(e)}")
             raise
@@ -59,7 +64,13 @@ Only provide the test code without any explanations."""
         try:
             response = self.model.generate_content(prompt)
             logger.info("Generated tests!")
-            return response.text
+            ret_text = response.text
+            split_code = ret_text.split("\n")
+            for is_it_tilde in split_code:
+                if "```" in is_it_tilde:
+                    split_code.remove(is_it_tilde)
+            split_code_join = "\n".join(split_code)
+            return split_code_join
         except Exception as e:
             logger.error(f"Error generating tests: {str(e)}")
             raise
@@ -83,7 +94,13 @@ Only provide the code without any explanations."""
         try:
             response = self.model.generate_content(prompt)
             logger.info("Improved code!")
-            return response.text
+            ret_text = response.text
+            split_code = ret_text.split("\n")
+            for is_it_tilde in split_code:
+                if "```" in is_it_tilde:
+                    split_code.remove(is_it_tilde)
+            split_code_join = "\n".join(split_code)
+            return split_code_join
         except Exception as e:
             logger.error(f"Error improving code: {str(e)}")
             raise
@@ -91,12 +108,7 @@ Only provide the code without any explanations."""
     def validate_syntax(self, code: str) -> bool:
         """Validate Python code syntax."""
         try:
-            split_code = code.split("\n")
-            for is_it_tilde in split_code:
-                if "```" in is_it_tilde:
-                    split_code.remove(is_it_tilde)
-            split_code_join = "\n".join(split_code)
-            ast.parse(split_code_join)
+            ast.parse(code)
             return True
         except SyntaxError:
             return False
@@ -147,6 +159,7 @@ Only provide the code without any explanations."""
             
             # Generate tests
             test_code = self.generate_test(code, requirements)
+            print(test_code)
             if not self.validate_syntax(test_code):
                 logger.warning("Generated tests have syntax errors. Retrying...")
                 continue
