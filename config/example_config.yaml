@@ -3,3 +3,4 @@ llm: gemini
 project_name: chipflow_gen
 prompt: "generate a python function to take a string as an input argument and print it with an exclaimation mark added to it."
 generated_language: Amaranth
+vcs: github

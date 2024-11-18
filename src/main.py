@@ -152,6 +152,7 @@ Only provide the code without any explanations."""
             Dict containing final code, tests, and test results
         """
         iteration = 0
+        err_flag = 0
         while iteration < self.max_iterations:
             logger.info(f"Starting iteration {iteration + 1}")
             
@@ -180,7 +181,8 @@ Only provide the code without any explanations."""
                     "code": code,
                     "tests": test_code,
                     "test_output": test_output,
-                    "iterations": iteration + 1
+                    "iterations": iteration + 1,
+                    "err": err_flag
                 }
             
             # If tests failed, try to improve the code
@@ -189,11 +191,13 @@ Only provide the code without any explanations."""
             iteration += 1
         
         logger.warning(f"Failed to generate working code after {self.max_iterations} iterations")
+        err_flag = 1
         return {
             "code": code,
             "tests": test_code,
             "test_output": test_output,
-            "iterations": iteration
+            "iterations": iteration,
+            "err": err_flag
         }
 
 def main():
@@ -223,22 +227,43 @@ def main():
     elif args.requirments == "":
         raise Exception("No requirements provided! Exiting generator")
     
-    # Create output directory if it doesn't exist
+    # Create output directories if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir+"/rtl/", exist_ok=True)
+    os.makedirs(output_dir+"/sim/", exist_ok=True)
     
     # Initialize and run agent
     agent = CodeGenerationAgent(max_iterations=args.max_iterations, llm=llm)
     result = agent.generate_and_test(requirement_prompt)
     
     # Save results
-    with open(os.path.join(output_dir, 'solution.py'), 'w') as f:
+    with open(os.path.join(output_dir+"/rtl/", 'solution.py'), 'w') as f:
         f.write(result['code'])
-    with open(os.path.join(output_dir, 'test_solution.py'), 'w') as f:
+    with open(os.path.join(output_dir+"/sim/", 'test_solution.py'), 'w') as f:
         f.write(result['tests'])
     with open(os.path.join(output_dir, 'test_output.txt'), 'w') as f:
         f.write(result['test_output'])
     
     logger.info(f"Generated files saved to {output_dir}")
+
+    # check if output directory needs to be saved as a repository
+    # if only the generation didn't fail
+    if result['err'] != 1:
+        logger.warning("Would you like to save the output in a git repository? y/n")
+        store_as_repo = input("")
+        if store_as_repo == "y" or "Y":
+            logger.info("Initiating the output directory as a repository")
+            # cd 
+            subprocess.run(["cd", f"./{output_dir}"])
+            # git init
+            subprocess.run(
+                ["git", "init"],
+                capture_output=True,
+                text=True,
+                cwd=output_dir
+            )
+    else:
+        logger.info("Exiting program without saving the directory as a repository")
     logger.info(f"Completed in {result['iterations']} iterations")
     
 if __name__ == "__main__":
