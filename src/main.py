@@ -1,4 +1,4 @@
-# This is the main directory for the ChipFlow AI exercise
+# This is the main file for the ChipFlow AI exercise
 
 import os
 import sys
@@ -9,12 +9,15 @@ import google.generativeai as genai
 import subprocess
 from typing import Tuple, Dict, Optional
 import logging
+import yaml
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Class: CodeGenerationAgent: holds functions to perform code and test generation
+#                             to execute and save the successful runs.
 class CodeGenerationAgent:
-    def __init__(self, api_key: Optional[str] = None, max_iterations: int = 3):
+    def __init__(self, llm: str, api_key: Optional[str] = None, max_iterations: int = 3):
         """
         Initialize the code generation agent.
         
@@ -22,9 +25,14 @@ class CodeGenerationAgent:
             api_key: LLM API key
             max_iterations: Maximum number of iteration attempts
         """
-        genai.configure(api_key=os.environ["API_KEY"])
+        if llm == "gemini":
+            genai.configure(api_key=os.environ["API_KEY"])
+            self.model = genai.GenerativeModel("gemini-1.5-flash")
+        elif llm == "gpt":
+            self.model = OpenAI(api_key=api_key or os.getenv('OPENAI_API_KEY'))
+        else:
+            raise ValueError("Pick a supported LLM API!")
         self.max_iterations = max_iterations
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
         
     def generate_code(self, requirements: str) -> str:
         """Generate Python code based on requirements."""
@@ -159,7 +167,6 @@ Only provide the code without any explanations."""
             
             # Generate tests
             test_code = self.generate_test(code, requirements)
-            print(test_code)
             if not self.validate_syntax(test_code):
                 logger.warning("Generated tests have syntax errors. Retrying...")
                 continue
@@ -194,28 +201,44 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate and test Python code from requirements')
-    parser.add_argument('--requirements', '-r', required=True, help='Requirements for the Python program')
-    parser.add_argument('--output-dir', '-o', default='generated', help='Output directory')
+    parser.add_argument('--requirements', '-r', required=True, help='Requirements yaml or user input for the Python program')
     parser.add_argument('--max-iterations', '-m', type=int, default=3, help='Maximum number of improvement iterations')
     
     args = parser.parse_args()
+
+    # Check if requirements argument is a YAML entry or not
+    if ".yaml" in args.requirements:
+        with open(args.requirements) as stream:
+            try:
+                yaml_config = yaml.safe_load(stream)
+                # Instantiate local variables with the yaml fields
+                llm = yaml_config['llm']
+                output_dir = yaml_config['project_name']
+                requirement_prompt = yaml_config['prompt']
+                required_lang = yaml_config['generated_language']
+            except yaml.YAMLError as exc:
+                print(exc)
+
+    # Raise error if requirements not specified
+    elif args.requirments == "":
+        raise Exception("No requirements provided! Exiting generator")
     
     # Create output directory if it doesn't exist
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     
     # Initialize and run agent
-    agent = CodeGenerationAgent(max_iterations=args.max_iterations)
-    result = agent.generate_and_test(args.requirements)
+    agent = CodeGenerationAgent(max_iterations=args.max_iterations, llm=llm)
+    result = agent.generate_and_test(requirement_prompt)
     
     # Save results
-    with open(os.path.join(args.output_dir, 'solution.py'), 'w') as f:
+    with open(os.path.join(output_dir, 'solution.py'), 'w') as f:
         f.write(result['code'])
-    with open(os.path.join(args.output_dir, 'test_solution.py'), 'w') as f:
+    with open(os.path.join(output_dir, 'test_solution.py'), 'w') as f:
         f.write(result['tests'])
-    with open(os.path.join(args.output_dir, 'test_output.txt'), 'w') as f:
+    with open(os.path.join(output_dir, 'test_output.txt'), 'w') as f:
         f.write(result['test_output'])
     
-    logger.info(f"Generated files saved to {args.output_dir}")
+    logger.info(f"Generated files saved to {output_dir}")
     logger.info(f"Completed in {result['iterations']} iterations")
     
 if __name__ == "__main__":
