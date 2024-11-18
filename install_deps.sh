@@ -10,7 +10,7 @@ else
     then
 	echo "Installing dependencies for Ubuntu...";
 	echo "Installing GitHub CLI (gh) utility...";
-	sudo apt install gh;
+	sudo apt install gh -y;
 	echo "Installed gh utility successfully!";
     fi
 fi
