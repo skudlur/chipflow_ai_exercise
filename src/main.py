@@ -262,6 +262,53 @@ def main():
                 text=True,
                 cwd=output_dir
             )
+
+            git_cmd = "git config user.name"
+            # github push
+            user = subprocess.run(git_cmd,
+                shell=True,
+                stdout=subprocess.PIPE
+                )
+
+            user_utf = user.stdout.decode("utf-8")
+
+            try:
+                curl_cmd = f"gh repo create --source . --private --disable-issues && git remote set-url origin \"git@github.com:$(gh repo view --json nameWithOwner -q .nameWithOwner).git\""
+                git_add = f"git add ."
+                git_commit = "git commit -m \"Init commit\""
+                git_push = "git push -u origin main"
+                subprocess.run(["cd", f"{output_dir}"],
+                               capture_output=True,
+                               text=True
+                               )
+                subprocess.run(curl_cmd,
+                               shell=True,
+                               capture_output=True,
+                               text=True,
+                               cwd=output_dir
+                               )
+                subprocess.run(git_add,
+                               shell=True,
+                               capture_output=True,
+                               text=True,
+                               cwd=output_dir
+                               )
+                subprocess.run(git_commit,
+                               shell=True,
+                               capture_output=True,
+                               text=True,
+                               cwd=output_dir
+                               )
+                subprocess.run(git_push,
+                               shell=True,
+                               capture_output=True,
+                               text=True,
+                               cwd=output_dir
+                               )
+
+            except:
+                raise("Error!")
+    
     else:
         logger.info("Exiting program without saving the directory as a repository")
     logger.info(f"Completed in {result['iterations']} iterations")
