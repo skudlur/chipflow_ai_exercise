@@ -10,6 +10,8 @@ import subprocess
 from typing import Tuple, Dict, Optional
 import logging
 import yaml
+from amaranth import *
+from amaranth.sim import Simulator, Tick
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,10 +38,11 @@ class CodeGenerationAgent:
         
     def generate_code(self, requirements: str) -> str:
         """Generate Python code based on requirements."""
-        prompt = f"""Write a Python program that meets these requirements:
+        prompt = f"""You are an expert RTL designer that uses Amaranth HDL.
+        Write a Amaranth HDL program that meets these requirements:
 {requirements}
 
-The code should be complete, well-documented, and follow Python best practices.
+The code should be complete, well-documented, and follow Amaranth HDL best practices.
 Only provide the code without any explanations."""
 
         try:
@@ -58,7 +61,8 @@ Only provide the code without any explanations."""
 
     def generate_test(self, code: str, requirements: str) -> str:
         """Generate pytest test cases based on the code and requirements."""
-        prompt = f"""Write pytest test cases for the following Python code and requirements:
+        prompt = f"""You are an expert RTL verification engineer that uses Amaranth HDL.
+        Write an Amaranth HDL testbench test cases for the following Amaranth HDL code and requirements:
 
 Requirements:
 {requirements}
@@ -85,7 +89,7 @@ Only provide the test code without any explanations."""
 
     def improve_code(self, code: str, test_output: str, requirements: str) -> str:
         """Generate improved code based on test failures."""
-        prompt = f"""Improve the following Python code to fix the test failures:
+        prompt = f"""Improve the following Amaranth HDL code to fix the test failures:
 
 Requirements:
 {requirements}
@@ -144,7 +148,41 @@ Only provide the code without any explanations."""
             tests_passed = process.returncode == 0
             return tests_passed, process.stdout + process.stderr
 
-    def generate_and_test(self, requirements: str) -> Dict[str, str]:
+    def run_amaranth_test(self, code: str, test_code: str, output_dir: str) -> Tuple[bool, str]:
+        """Run the Amaranth testbench and return the results."""
+        try:
+            # Write the code and testbench to temporary files
+            with tempfile.TemporaryDirectory() as tmpdir:
+                code_path = os.path.join(tmpdir, f"{output_dir}.py")
+                test_path = os.path.join(tmpdir, f"test_{output_dir}.py")
+                
+                with open(code_path, 'w') as f:
+                    f.write(code)
+                with open(test_path, 'w') as f:
+                    f.write(test_code)
+                
+                # Import and simulate Amaranth HDL testbench
+                sys.path.insert(0, tmpdir)
+
+                #Run the test_solution.py script using subprocess
+                process = subprocess.run(
+                    [sys.executable, test_path],  # Run the test file using the Python interpreter
+                    capture_output=True,  # Capture stdout and stderr
+                    text=True,  # Ensure the output is returned as text, not bytes
+                    cwd=tmpdir  # Set the current working directory to the temporary directory
+                )
+
+                # Check if the simulation ran successfully (return code 0 means success)
+                if process.returncode == 0:
+                    return True, process.stdout  # Return the simulation output if successful
+                else:
+                    return False, process.stderr  # Return the error output if the test fails
+
+        except Exception as e:
+            logger.error(f"Error running Amaranth testbench: {str(e)}")
+            return False, str(e)
+
+    def generate_and_test(self, requirements: str, output_dir: str) -> Dict[str, str]:
         """
         Main method to generate code, tests, and iterate until success.
         
@@ -173,7 +211,7 @@ Only provide the code without any explanations."""
                 continue
             
             # Run tests
-            tests_passed, test_output = self.run_tests(code, test_code)
+            tests_passed, test_output = self.run_amaranth_test(code, test_code, output_dir)
             
             if tests_passed:
                 logger.info("All tests passed!")
@@ -234,12 +272,12 @@ def main():
     
     # Initialize and run agent
     agent = CodeGenerationAgent(max_iterations=args.max_iterations, llm=llm)
-    result = agent.generate_and_test(requirement_prompt)
+    result = agent.generate_and_test(requirement_prompt, output_dir)
     
     # Save results
-    with open(os.path.join(output_dir+"/rtl/", 'solution.py'), 'w') as f:
+    with open(os.path.join(output_dir+"/rtl/", f'{output_dir}.py'), 'w') as f:
         f.write(result['code'])
-    with open(os.path.join(output_dir+"/sim/", 'test_solution.py'), 'w') as f:
+    with open(os.path.join(output_dir+"/sim/", f'test_{output_dir}.py'), 'w') as f:
         f.write(result['tests'])
     with open(os.path.join(output_dir, 'test_output.txt'), 'w') as f:
         f.write(result['test_output'])

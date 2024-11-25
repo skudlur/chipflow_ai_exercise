@@ -3,3 +3,4 @@ typing==3.7.4.3
 pytest==8.3.3
 logging==0.4.9.6
 pyyaml==6.0.2
+amaranth-yosys==0.40.0.0.post101 

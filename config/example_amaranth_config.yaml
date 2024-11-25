@@ -1,0 +1,6 @@
+---
+llm: gemini
+project_name: full_adder
+prompt: "generate an amaranth HDL design file for a full adder"
+generated_language: Amaranth
+vcs: github
